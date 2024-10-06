@@ -212,7 +212,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 
   console.log('File received:', req.file); // Log the received file
 
-  const imageUrl = `https://order.escobarvapecartel.com/uploads/${req.file.filename}`;
+  const imageUrl = `https://order-api.escobarvapecartel.com/uploads/${req.file.filename}`;
   res.json({ url: imageUrl });
 });
 
