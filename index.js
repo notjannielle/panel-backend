@@ -10,6 +10,8 @@ const fs = require('fs');
 const app = express(); 
 app.use(cors()); // Enable CORS
 app.use(express.json()); 
+const isProduction = process.env.NODE_ENV === 'production';
+
 
 // Set up storage for uploaded images
 const storage = multer.diskStorage({
@@ -210,7 +212,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 
   console.log('File received:', req.file); // Log the received file
 
-  const imageUrl = `http://localhost:${PORT}/uploads/${req.file.filename}`;
+  const imageUrl = `https://order.escobarvapecartel.com/uploads/${req.file.filename}`;
   res.json({ url: imageUrl });
 });
 

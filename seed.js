@@ -13,30 +13,6 @@ const adminSchema = new mongoose.Schema({
 });
 
 
-// Define the order schema
-const orderSchema = new mongoose.Schema({
-    user: {
-      name: { type: String, required: true },
-      contact: { type: String, required: true },
-    },
-    items: [{
-      product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-      variant: { type: String, required: true },
-      quantity: { type: Number, required: true },
-      price: { type: Number, required: true },
-      branch: { type: String, required: true },
-    }],
-    total: { type: Number, required: true },
-    orderNumber: { type: String, required: true },
-    status: {
-      type: String,
-      enum: [ 'Order Received', 'Preparing', 'Ready for Pickup', 'Picked Up', 'Canceled'],
-      default: 'Order Received', // Default status
-    },
-  });
-  
-  // Create the Order model from the schema
-  const Order = mongoose.model('Order', orderSchema);
 
 const Admin = mongoose.model('Admin', adminSchema);
 
@@ -57,25 +33,25 @@ const seedAdmins = async () => {
         role: 'owner',
       },
       {
-        name: 'Piolo Duran',
-        username: 'piolo',
-        password: 'piolo',
+        name: 'First Branch Manager',
+        username: 'first',
+        password: '@escobarvape1',
         role: 'branch manager',
-        branch: '1st branch',
+        branch: 'main',
       },
       {
-        name: 'Marc John Fabian',
-        username: 'fabian',
-        password: 'fabian',
+        name: 'Second Branch Manager',
+        username: 'second',
+        password: '@escobarvape2',
         role: 'branch manager',
-        branch: '2nd branch',
+        branch: 'second',
       },
       {
-        name: 'Jannielle Tominio',
-        username: 'nielle',
-        password: 'nielle',
+        name: 'Third Branch Manager',
+        username: 'third',
+        password: '@escobarvape3',
         role: 'branch manager',
-        branch: '3rd branch',
+        branch: 'third',
       },
     ];
 
