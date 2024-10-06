@@ -3,10 +3,25 @@ const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken'); 
 const bcrypt = require('bcrypt'); 
 const cors = require('cors'); // Import CORS
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const app = express(); 
 app.use(cors()); // Enable CORS
 app.use(express.json()); 
+
+// Set up storage for uploaded images
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/'); // Directory to save uploaded images
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname)); // Use timestamp as filename
+  },
+});
+const upload = multer({ storage });
+
 
 // MongoDB connection
 mongoose.connect('mongodb://127.0.0.1:27017/escobarvapedb', { useNewUrlParser: true, useUnifiedTopology: true })
@@ -98,17 +113,25 @@ const UserSchema = new mongoose.Schema({
 const User = mongoose.model('User', UserSchema);
 
 const authenticate = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1]; // Get token from headers
+  const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ message: 'Unauthorized' });
 
   jwt.verify(token, 'escobar', (err, decoded) => {
-    if (err) return res.status(403).json({ message: 'Forbidden' });
+    if (err) {
+      console.error('Token verification error:', err);
+      return res.status(403).json({ message: 'Forbidden' });
+    }
 
-    req.userId = decoded.id; // Save the user ID for later use
-    req.role = decoded.role; // Save the role for later use
-    next(); // Proceed to the next middleware or route
+    console.log('Decoded token:', decoded); // Log the decoded token
+
+    req.userId = decoded.id;
+    req.role = decoded.role; // Ensure this is set correctly
+    req.branch = decoded.branch; // Ensure this is set correctly
+
+    next();
   });
 };
+
 
 const loginAdmin = async (req, res) => {
   const { username, password } = req.body;
@@ -118,7 +141,11 @@ const loginAdmin = async (req, res) => {
     return res.status(401).json({ message: 'Invalid credentials' });
   }
 
-  const token = jwt.sign({ id: admin._id, role: admin.role }, 'escobar', { expiresIn: '1h' });
+  const token = jwt.sign(
+    { id: admin._id, role: admin.role, branch: admin.branch }, // Include branch
+    'escobar',
+    { expiresIn: '90d' }
+  );
 
   // Return the token and user data
   res.json({
@@ -127,9 +154,14 @@ const loginAdmin = async (req, res) => {
       name: admin.name,
       username: admin.username,
       role: admin.role,
+      branch: admin.branch // Include branch in the response
     },
   });
 };
+
+
+
+
 
 // Routes
 app.post('/api/auth/login', loginAdmin);
@@ -137,14 +169,28 @@ app.get('/api/protected-route', authenticate, (req, res) => {
   res.json({ message: 'This is a protected route', userId: req.userId, role: req.role });
 });
 
-app.get('/api/orders', async (req, res) => {
+app.get('/api/orders', authenticate, async (req, res) => {
   try {
-    const orders = await Order.find()
-      .populate({
-        path: 'items.product', // Populate the product field in items
-        model: 'Product', // Reference the Product model
-        select: 'name price' // Only select the necessary fields
+    let orders;
+
+    // Check the user's role
+    if (req.role === 'owner') {
+      // Owner can see all orders
+      orders = await Order.find().populate({
+        path: 'items.product',
+        model: 'Product',
+        select: 'name price'
       });
+    } else if (req.role === 'branch manager') {
+      // Branch manager can only see orders for their branch
+      orders = await Order.find({ 'branch': req.branch }).populate({
+        path: 'items.product',
+        model: 'Product',
+        select: 'name price'
+      });
+    } else {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
 
     res.json(orders);
   } catch (error) {
@@ -153,6 +199,159 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
+
+//IMAGE UPLOAD
+// API endpoint for image upload
+app.post('/api/upload', upload.single('image'), (req, res) => {
+  if (!req.file) {
+    console.log('No file received');
+    return res.status(400).json({ message: 'No file uploaded' });
+  }
+
+  console.log('File received:', req.file); // Log the received file
+
+  const imageUrl = `http://localhost:${PORT}/uploads/${req.file.filename}`;
+  res.json({ url: imageUrl });
+});
+
+// Serve the uploaded images
+app.use('/uploads', express.static('uploads')); // Serve files from the uploads directory
+
+
+
+
+
+
+//CREATE BACKUP  RESTORE
+app.get('/api/products/backup', async (req, res) => {
+  try {
+    const products = await Product.find();
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename=products_backup.json');
+    res.send(JSON.stringify(products));
+  } catch (error) {
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+app.post('/api/products/restore', upload.single('file'), async (req, res) => {
+  try {
+    const productsData = require(`./uploads/${req.file.filename}`); // Adjust the path based on your setup
+
+    await Product.deleteMany({}); // Clear existing products
+    await Product.insertMany(productsData); // Restore from backup
+
+    res.json({ message: 'Products restored successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Create Backup for Orders
+// Create Backup for Orders
+app.get('/api/orders/backup', authenticate, async (req, res) => {
+  try {
+    const orders = await Order.find().populate({
+      path: 'items.product',
+      model: 'Product',
+      select: 'name price'
+    }).select('-__v'); // Exclude version key if not needed
+
+    // Include the branch field at the order level
+    const ordersWithBranch = orders.map(order => ({
+      ...order.toObject(),
+      branch: order.branch // Add branch here
+    }));
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename=orders_backup.json');
+    res.send(JSON.stringify(ordersWithBranch));
+  } catch (error) {
+    console.error('Error creating backup:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+
+// Restore Orders
+// Restore Orders
+app.post('/api/orders/restore', authenticate, upload.single('file'), async (req, res) => {
+  try {
+    const filePath = path.join(__dirname, 'uploads', req.file.filename);
+    const ordersData = JSON.parse(fs.readFileSync(filePath));
+
+    // Clear existing orders
+    await Order.deleteMany({}); 
+
+    // Iterate through orders and ensure branch is set correctly
+    const ordersToRestore = ordersData.map(order => {
+      const orderWithBranch = {
+        ...order,
+        branch: order.items[0]?.branch // Set branch from the first item
+      };
+      return orderWithBranch;
+    });
+
+    // Restore from backup
+    await Order.insertMany(ordersToRestore);
+
+    res.json({ message: 'Orders restored successfully' });
+  } catch (error) {
+    console.error('Error restoring orders:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+
+
+
+// Update order status
+app.put('/api/orders/:id/status', authenticate, async (req, res) => {
+  const { status } = req.body; // Get the new status from the request body
+  const validStatuses = ['Order Received', 'Preparing', 'Ready for Pickup', 'Picked Up', 'Canceled'];
+
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ message: 'Invalid status' });
+  }
+
+  try {
+    const order = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+    res.json(order);
+  } catch (error) {
+    console.error('Error updating order status:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+app.put('/api/orders/order-number/:orderNumber/status', authenticate, async (req, res) => {
+  const { status } = req.body; // Get the status from the body
+
+  const validStatuses = ['Order Received', 'Preparing', 'Ready for Pickup', 'Picked Up', 'Canceled'];
+
+  // Validate the new status
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ message: 'Invalid status' });
+  }
+
+  try {
+    // Correctly find the order using orderNumber
+    const order = await Order.findOne({ orderNumber: req.params.orderNumber });
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Update the status
+    order.status = status;
+    await order.save(); // Save the changes to the database
+
+    res.json(order); // Return the updated order
+  } catch (error) {
+    console.error('Error updating order status:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
 
 
 
