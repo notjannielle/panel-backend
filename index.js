@@ -1,3 +1,4 @@
+require('dotenv').config(); // Load environment variables
 const express = require('express'); 
 const mongoose = require('mongoose'); 
 const jwt = require('jsonwebtoken'); 
@@ -25,8 +26,9 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 
-// MongoDB connection
-mongoose.connect('mongodb://127.0.0.1:27017/escobarvapedb', { useNewUrlParser: true, useUnifiedTopology: true })
+const uri = process.env.MONGO_URI;
+
+mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.error('MongoDB connection error:', err));
 
@@ -202,7 +204,8 @@ app.get('/api/orders', authenticate, async (req, res) => {
 });
 
 
-//IMAGE UPLOAD
+
+// IMAGE UPLOAD
 // API endpoint for image upload
 app.post('/api/upload', upload.single('image'), (req, res) => {
   if (!req.file) {
@@ -212,7 +215,8 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 
   console.log('File received:', req.file); // Log the received file
 
-  const imageUrl = `https://admin-api.escobarvapecartel.com/uploads/${req.file.filename}`;
+  // Use the IMAGE_UPLOAD_URL from the environment variable
+  const imageUrl = `${process.env.IMAGE_UPLOAD_URL}/${req.file.filename}`;
   res.json({ url: imageUrl });
 });
 
