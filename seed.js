@@ -2,7 +2,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
-const dbURI = 'mongodb://127.0.0.1:27017/escobarvapedb';
+const dbURI = 'mongodb+srv://escobar:escobar4256@escobarvapecartel.snbyobo.mongodb.net/escobarvapedb?retryWrites=true&w=majority&appName=escobarvapecartel';
 
 const adminSchema = new mongoose.Schema({
   name: { type: String, required: true },
