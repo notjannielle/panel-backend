@@ -116,6 +116,29 @@ const UserSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', UserSchema);
 
+
+
+
+// Define the Announcement schema
+const announcementSchema = new mongoose.Schema({
+  message: {
+    type: String,
+    required: true,
+  },
+  enabled: {
+    type: Boolean,
+    default: false, // default to disabled
+  },
+}, { timestamps: true });
+
+const Announcement = mongoose.model('Announcement', announcementSchema);
+
+
+
+
+
+
+
 const authenticate = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ message: 'Unauthorized' });
@@ -424,6 +447,54 @@ app.put('/api/products/:id', async (req, res) => {
       res.status(500).json({ message: 'Internal server error' });
     }
   });
+  
+
+
+
+
+
+
+
+
+
+
+// Fetch the announcement
+app.get('/api/announcement', async (req, res) => {
+  try {
+    const announcement = await Announcement.findOne(); // Only retrieve one announcement
+    if (!announcement) {
+      return res.status(404).json({ message: 'No announcement found' });
+    }
+    res.json(announcement);
+  } catch (error) {
+    console.error('Error fetching announcement:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Update the announcement
+app.put('/api/announcement', authenticate, async (req, res) => {
+  const { message, enabled } = req.body;
+
+  try {
+    let announcement = await Announcement.findOne(); // Get the existing announcement
+    if (!announcement) {
+      // Create a new one if it doesn't exist
+      announcement = new Announcement({ message, enabled });
+    } else {
+      // Update the existing announcement
+      announcement.message = message;
+      announcement.enabled = enabled;
+    }
+
+    await announcement.save(); // Save the announcement
+    res.json(announcement);
+  } catch (error) {
+    console.error('Error updating announcement:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
   
 
 
