@@ -134,7 +134,11 @@ const announcementSchema = new mongoose.Schema({
 const Announcement = mongoose.model('Announcement', announcementSchema);
 
 
+const imageSchema = new mongoose.Schema({
+  url: { type: String, required: true },
+});
 
+const Image = mongoose.model('Image', imageSchema);
 
 
 
@@ -247,6 +251,29 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
 app.use('/uploads', express.static('uploads')); // Serve files from the uploads directory
 
 
+// IMAGE UPLOAD FOR SLIDER
+app.post('/api/slider-images/upload', upload.single('image'), async (req, res) => {
+  if (!req.file) {
+    console.log('No file received');
+    return res.status(400).json({ message: 'No file uploaded' });
+  }
+
+  console.log('File received:', req.file); // Log the received file
+
+  // Construct the URL for the uploaded image
+  const imageUrl = `${process.env.IMAGE_UPLOAD_URL}/${req.file.filename}`;
+
+  try {
+    // Save the image URL to the database
+    const newImage = new Image({ url: imageUrl });
+    await newImage.save(); // Save to the database
+
+    res.status(201).json({ url: imageUrl }); // Return the URL to the client
+  } catch (error) {
+    console.error('Error saving image to database:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
 
 
 
@@ -495,7 +522,57 @@ app.put('/api/announcement', authenticate, async (req, res) => {
   }
 });
 
-  
+
+
+
+
+
+
+
+
+// Fetch all slider images
+// Fetch all slider images
+app.get('/api/slider-images', async (req, res) => {
+  try {
+    const images = await Image.find(); // Fetch images from the database
+    res.json(images);
+  } catch (error) {
+    console.error('Error fetching images:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+
+// Add a new slider image (after upload)
+app.post('/api/slider-images', async (req, res) => {
+  const { url } = req.body;
+  try {
+    const newImage = new Image({ url });
+    await newImage.save();
+    res.status(201).json(newImage);
+  } catch (error) {
+    console.error('Error saving image:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// In your backend (Express)
+// Delete a slider image
+app.delete('/api/slider-images', async (req, res) => {
+  const { url } = req.body;
+  try {
+    await Image.findOneAndDelete({ url }); // Remove from database
+    // Optionally, delete the file from the filesystem if needed
+    const filePath = path.join(__dirname, 'uploads', path.basename(url)); // Adjust path as needed
+    fs.unlinkSync(filePath); // Delete the file from the server
+    res.status(204).send(); // No content
+  } catch (error) {
+    console.error('Error deleting image:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+
 
 
 // Starting the server
