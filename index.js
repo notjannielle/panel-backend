@@ -481,8 +481,63 @@ app.put('/api/products/:id', async (req, res) => {
 
 
 
+// Delete a variant from a product by ID and variant name
+app.delete('/api/products/:id/variants', async (req, res) => {
+  const { variantName } = req.body;
+  try {
+    const updatedProduct = await Product.findByIdAndUpdate(
+      req.params.id,
+      { $pull: { 'branches.main': { name: variantName }, 
+                  'branches.second': { name: variantName }, 
+                  'branches.third': { name: variantName }, 
+                  'branches.fourth': { name: variantName } } },
+      { new: true }
+    );
+    
+    if (!updatedProduct) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+    
+    res.json(updatedProduct);
+  } catch (error) {
+    console.error('Error deleting variant:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
 
 
+// Add a variant to a product by ID
+app.post('/api/products/:id/variants', async (req, res) => {
+  const { variant } = req.body; // Expecting variant to be an object with properties like name and available
+
+  if (!variant || !variant.name) {
+    return res.status(400).json({ message: 'Variant name is required.' });
+  }
+
+  try {
+    const updatedProduct = await Product.findByIdAndUpdate(
+      req.params.id,
+      {
+        $push: {
+          'branches.main': variant, // Add the variant to the main branch (you can modify this as needed)
+          'branches.second': variant,
+          'branches.third': variant,
+          'branches.fourth': variant,
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedProduct) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    res.json(updatedProduct);
+  } catch (error) {
+    console.error('Error adding variant:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
 
 
 
