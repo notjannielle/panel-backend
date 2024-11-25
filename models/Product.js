@@ -9,6 +9,7 @@ const branchSchema = new mongoose.Schema({
   main: [variantSchema],
   second: [variantSchema],
   third: [variantSchema],
+  fourth: [variantSchema],
 });
 
 const productSchema = new mongoose.Schema({
